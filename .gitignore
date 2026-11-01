@@ -1,0 +1,26 @@
+.DS_Store
+
+# Android / Gradle
+build/
+.gradle/
+.kotlin/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.iml
+.idea/
+*.hprof
+*.log
+
+# Build outputs
+*.apk
+*.aab
+output-metadata.json
+
+# Signing: never commit keystores or decrypted secrets
+*.jks
+*.keystore
+keystore.properties
+release-secrets.yaml
+release-secrets.json

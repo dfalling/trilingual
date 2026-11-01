@@ -1,0 +1,50 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "Hold java on Adoptium mainline LTS builds, matched on depName: the mise manager reports this dep as depName `java` but packageName `java-jdk`, and matchPackageNames tests the packageName, so a matchPackageNames: [\"java\"] rule silently never applies. The regex admits only mainline LTS builds and blocks two things. First, Adoptium's interim respins (`jdk-25.0.4.1+1`): Adoptium builds a respin only for the platforms that needed the fix, and 25.0.4.1 shipped alpine-linux/x64 and mac/x64 only, with no linux/x64 binary. mise resolves java per platform, so on linux/x64 there is no metadata at all and `mise install` hard-fails (`no metadata found for version temurin-25.0.4+101.0.LTS`) before any build step, breaking CI and every dev machine that isn't a mac x64. Adoptium's semver encodes a respin as `patch * 100 + build`, so respins land at +1xx and up while mainline builds stay under +100 \u2014 hence the 1-2 digit build. Second, non-LTS majors (`26.0.2+10`, no LTS suffix): this is the Android build JDK and tracks LTS only. Mainline LTS patches (25.0.5, and the next LTS when it ships) still come through.",
+      "matchDepNames": [
+        "java"
+      ],
+      "matchManagers": [
+        "mise"
+      ],
+      "allowedVersions": "/^\\d+\\.\\d+\\.\\d+\\+\\d{1,2}\\.0\\.LTS$/"
+    },
+    {
+      "description": "Kotlin, the Compose compiler plugin and KSP must move together: the compose plugin is versioned with Kotlin, and KSP has to support the Kotlin version AGP compiles with.",
+      "matchPackageNames": [
+        "/^org\\.jetbrains\\.kotlin/",
+        "/^com\\.google\\.devtools\\.ksp/"
+      ],
+      "groupName": "kotlin"
+    },
+    {
+      "description": "Group AndroidX Compose libraries (versioned by the BOM)",
+      "matchPackageNames": [
+        "/^androidx\\.compose/"
+      ],
+      "groupName": "compose"
+    },
+    {
+      "description": "Room runtime, ktx and compiler must match",
+      "matchPackageNames": [
+        "/^androidx\\.room/"
+      ],
+      "groupName": "room"
+    },
+    {
+      "description": "Auto-merge patch updates for GitHub Actions",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "automerge": true
+    }
+  ]
+}

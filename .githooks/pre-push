@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "→ lint + unit tests"
+./gradlew lintDebug testDebugUnitTest --quiet

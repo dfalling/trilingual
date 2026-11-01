@@ -1,0 +1,11 @@
+version: 2
+
+secret:
+  # SOPS-encrypted files contain only AES-256-GCM ciphertext envelopes,
+  # not plaintext secrets — but GitGuardian's Generic Password detector
+  # still flags YAML keys named *_password regardless of the envelope.
+  ignored_paths:
+    - '**/*.enc.yaml'
+    - '**/*.enc.yml'
+    - '**/*.enc.json'
+    - '**/*.enc.env'

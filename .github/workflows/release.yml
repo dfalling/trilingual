@@ -1,0 +1,101 @@
+name: Release APK
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Serialize release builds on each ref so two near-simultaneous pushes don't
+# race for the same version tag. Don't cancel in-progress runs: a release
+# build mid-upload should finish before the next one starts.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so we can derive a monotonic versionCode from commit count.
+          fetch-depth: 0
+
+      # Installs java, sops and age from mise.toml.
+      - name: Set up mise tools
+        uses: jdx/mise-action@v2
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Compute version
+        id: version
+        run: |
+          VERSION_CODE=$(git rev-list --count HEAD)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION_NAME="${GITHUB_REF_NAME#v}"
+          else
+            # main pushes (and manual dispatch) get a commit-count-derived version.
+            VERSION_NAME="0.0.${VERSION_CODE}"
+          fi
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "Building $VERSION_NAME (code $VERSION_CODE)"
+
+      - name: Decrypt signing secrets
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          sops -d --output-type json release-secrets.enc.yaml > "$RUNNER_TEMP/secrets.json"
+          STORE_PASSWORD=$(jq -r .android_keystore_password "$RUNNER_TEMP/secrets.json")
+          KEY_PASSWORD=$(jq -r .android_key_password "$RUNNER_TEMP/secrets.json")
+          KEY_ALIAS=$(jq -r .android_key_alias "$RUNNER_TEMP/secrets.json")
+          jq -r .android_keystore_base64 "$RUNNER_TEMP/secrets.json" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          # Mask values so they don't leak into logs from later steps.
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_PASSWORD"
+          echo "RELEASE_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "RELEASE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "RELEASE_STORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          rm "$RUNNER_TEMP/secrets.json"
+
+      - name: Assemble release APK
+        env:
+          RELEASE_VERSION_NAME: ${{ steps.version.outputs.name }}
+          RELEASE_VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: |
+          mkdir -p artifacts
+          cp app/build/outputs/apk/release/app-release.apk \
+             "artifacts/trilingual-${{ steps.version.outputs.name }}.apk"
+          ls -la artifacts
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trilingual-${{ steps.version.outputs.name }}
+          path: artifacts/*.apk
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        # Cut a release for both `main` pushes and `v*` tag pushes; skip for
+        # workflow_dispatch (manual runs just produce the workflow artifact).
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          files: artifacts/*.apk
+          generate_release_notes: true
+          fail_on_unmatched_files: true

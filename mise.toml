@@ -1,0 +1,8 @@
+# Tool versions for this project, managed by mise (https://mise.jdx.dev).
+# Run `mise install` after cloning. CI installs the same versions via
+# jdx/mise-action, so local and CI builds can't drift.
+
+[tools]
+java = "temurin-25.0.5+8.0.LTS"
+sops = "3"
+age = "1"
