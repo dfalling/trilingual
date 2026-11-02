@@ -19,6 +19,9 @@ Services dependency.
   checks the key against Anthropic's free model-list endpoint first, so a bad key is caught
   right away. Settings also has the model (Opus 5.5 by default; Sonnet 5.5 and Haiku 5.5 are
   faster and cheaper) and clear history.
+- **App language:** follows the phone's language. English, Spanish and Portuguese (Brazilian, with
+  European Portuguese wording where it differs) are included; anything else falls back to English.
+  Strings live in `app/src/main/res/values*/strings.xml`.
 
 ## How translation works
 

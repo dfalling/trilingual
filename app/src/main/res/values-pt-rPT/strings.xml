@@ -1,0 +1,28 @@
+<resources>
+    <!-- Only where European Portuguese differs from Brazilian; everything else falls back to values-pt. -->
+    <string name="settings">Definições</string>
+    <string name="api_key_saved_hint">Há uma chave guardada e encriptada neste dispositivo. Introduza uma nova para a substituir.</string>
+    <string name="api_key_missing_hint">Crie uma chave na consola da Anthropic, copie-a e cole-a aqui. Fica guardada encriptada neste dispositivo e só é enviada à Anthropic.</string>
+    <string name="checking_key">A verificar a chave…</string>
+    <string name="save_key">Guardar chave</string>
+    <string name="clear_history_message">Todas as traduções anteriores serão eliminadas deste dispositivo.</string>
+    <string name="delete">Eliminar</string>
+    <string name="empty_feed">Escolha abaixo o idioma em que está a escrever, escreva e envie.\nAs suas traduções vão aparecer aqui.</string>
+    <string name="translating_to">A traduzir para %s…</string>
+    <string name="api_key_prompt">O Trilingual usa a sua própria chave de API da Anthropic para traduzir.</string>
+    <string name="language_picker_hint">Tudo o que escrever é traduzido para todos os idiomas assinalados aqui.</string>
+    <string name="model_haiku_blurb">O mais rápido e económico</string>
+    <string name="key_saved">A chave funciona e foi guardada.</string>
+    <string name="key_saved_unverified">Guardada, mas não verificada. %s</string>
+    <string name="key_rejected">A Anthropic rejeitou esta chave. Verifique se a copiou por inteiro.</string>
+    <string name="key_check_error">A API devolveu um erro (%d) ao verificar a chave.</string>
+    <string name="key_check_unreachable">Não foi possível ligar à Anthropic para verificar a chave.</string>
+    <string name="error_no_key">Adicione a sua chave de API da Anthropic nas Definições.</string>
+    <string name="error_key_rejected">A sua chave de API foi rejeitada. Verifique-a nas Definições.</string>
+    <string name="error_no_model_access">A sua chave de API não tem acesso a %s.</string>
+    <string name="error_rate_limited">A API atingiu o limite de pedidos. Tente novamente daqui a pouco.</string>
+    <string name="error_api">A API devolveu um erro (%d). Tente novamente.</string>
+    <string name="error_network">Não foi possível ligar à API. Verifique a sua ligação.</string>
+    <string name="error_refused">O Claude recusou-se a traduzir este texto.</string>
+    <string name="error_too_long">Esse texto é demasiado longo para traduzir de uma só vez.</string>
+</resources>

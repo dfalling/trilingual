@@ -23,7 +23,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.dfalling.trilingual.R
 import com.dfalling.trilingual.data.Languages
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,6 +40,7 @@ fun LanguagePickerSheet(
         Languages.all.filter {
             query.isBlank() ||
                 it.name.contains(query, ignoreCase = true) ||
+                Languages.displayName(it.code).contains(query, ignoreCase = true) ||
                 it.nativeName.contains(query, ignoreCase = true)
         }
 
@@ -46,9 +49,9 @@ fun LanguagePickerSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(Modifier.padding(horizontal = 16.dp)) {
-            Text("Languages", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.languages), style = MaterialTheme.typography.titleLarge)
             Text(
-                "Everything you write is translated into all the languages checked here.",
+                stringResource(R.string.language_picker_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 4.dp),
@@ -56,7 +59,7 @@ fun LanguagePickerSheet(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("Search") },
+                placeholder = { Text(stringResource(R.string.search)) },
                 leadingIcon = { Icon(Icons.Filled.Search, null) },
                 singleLine = true,
                 modifier =
@@ -68,10 +71,11 @@ fun LanguagePickerSheet(
         LazyColumn {
             items(matches, key = { it.code }) { language ->
                 val checked = language.code in selected
+                val name = Languages.displayName(language.code)
                 ListItem(
-                    headlineContent = { Text(language.name) },
+                    headlineContent = { Text(name) },
                     supportingContent =
-                        if (language.nativeName != language.name) {
+                        if (!language.nativeName.equals(name, ignoreCase = true)) {
                             { Text(language.nativeName) }
                         } else {
                             null

@@ -1,9 +1,11 @@
 package com.dfalling.trilingual.data
 
 import android.content.Context
+import androidx.annotation.StringRes
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.dfalling.trilingual.R
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -22,11 +24,11 @@ data class Settings(
 enum class ClaudeModel(
     val id: String,
     val label: String,
-    val blurb: String,
+    @param:StringRes val blurb: Int,
 ) {
-    OPUS("claude-opus-5-5", "Claude Opus 5.5", "Best quality"),
-    SONNET("claude-sonnet-5-5", "Claude Sonnet 5.5", "Balanced speed and quality"),
-    HAIKU("claude-haiku-5-5", "Claude Haiku 5.5", "Fastest and cheapest"),
+    OPUS("claude-opus-5-5", "Claude Opus 5.5", R.string.model_opus_blurb),
+    SONNET("claude-sonnet-5-5", "Claude Sonnet 5.5", R.string.model_sonnet_blurb),
+    HAIKU("claude-haiku-5-5", "Claude Haiku 5.5", R.string.model_haiku_blurb),
     ;
 
     companion object {

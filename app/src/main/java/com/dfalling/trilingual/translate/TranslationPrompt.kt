@@ -1,5 +1,7 @@
 package com.dfalling.trilingual.translate
 
+import com.dfalling.trilingual.R
+import com.dfalling.trilingual.UiText
 import com.dfalling.trilingual.data.Languages
 import org.json.JSONObject
 
@@ -77,13 +79,16 @@ object TranslationPrompt {
         }
         val missing = targets.filter { byCode[it].isNullOrBlank() }
         if (missing.isNotEmpty()) {
-            throw TranslationException("No translation returned for ${missing.joinToString { Languages.nameOf(it) }}.")
+            throw TranslationException(
+                UiText(R.string.error_missing_translation, missing.joinToString { Languages.displayName(it) }),
+            )
         }
         return targets.associateWith { byCode.getValue(it) }
     }
 }
 
+/** A failure with a message fit to show the user. */
 class TranslationException(
-    message: String,
+    val text: UiText,
     cause: Throwable? = null,
-) : Exception(message, cause)
+) : Exception(cause)

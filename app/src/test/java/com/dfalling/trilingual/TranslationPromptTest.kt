@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Locale
 
 class TranslationPromptTest {
     @Test
@@ -41,5 +42,12 @@ class TranslationPromptTest {
     fun `default languages exist in catalog`() {
         Languages.defaultCodes.forEach { assertNotNull(Languages.byCode(it)) }
         assertEquals(Languages.all.size, Languages.all.map { it.code }.toSet().size)
+    }
+
+    @Test
+    fun `display names follow the phone's language`() {
+        assertEquals("Portuguese (Brazil)", Languages.displayName("pt-BR", Locale.ENGLISH))
+        assertEquals("Portugués (Brasil)", Languages.displayName("pt-BR", Locale.forLanguageTag("es")))
+        assertEquals("Espanhol (Espanha)", Languages.displayName("es-ES", Locale.forLanguageTag("pt-BR")))
     }
 }

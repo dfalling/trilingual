@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,7 +62,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -87,8 +90,11 @@ fun TranslateScreen(
     val listState = rememberLazyListState()
     var showPicker by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    val resources = LocalResources.current
+
     LaunchedEffect(Unit) {
-        viewModel.messages.collect { snackbar.showSnackbar(it) }
+        viewModel.messages.collect { snackbar.showSnackbar(it.resolve(resources)) }
     }
     // The feed is bottom-anchored like a chat; jump to the newest item when one arrives.
     LaunchedEffect(entries.firstOrNull()?.id, pending) {
@@ -98,17 +104,16 @@ fun TranslateScreen(
     val copy: (String) -> Unit = { text ->
         scope.launch {
             clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Translation", text)))
-            snackbar.showSnackbar("Copied")
+            snackbar.showSnackbar(resources.getString(R.string.copied))
         }
     }
 
-    val context = LocalContext.current
     val pasteAndSend: () -> Unit = {
         scope.launch {
             val clip = clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }
             val text = clip?.getItemAt(0)?.coerceToText(context)?.toString()?.trim()
             if (text.isNullOrEmpty()) {
-                snackbar.showSnackbar("Nothing to paste")
+                snackbar.showSnackbar(resources.getString(R.string.nothing_to_paste))
             } else {
                 // Add to any draft rather than replacing it, so nothing typed is lost.
                 val draft = viewModel.input.trimEnd()
@@ -124,14 +129,15 @@ fun TranslateScreen(
                 title = { Text("Trilingual") },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings))
                     }
                 },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            settings?.let {
+            // Nothing to compose with until there's a key to translate with.
+            settings?.takeIf { it.hasApiKey }?.let {
                 Composer(
                     settings = it,
                     input = viewModel.input,
@@ -150,12 +156,14 @@ fun TranslateScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            if (settings?.hasApiKey == false) {
-                ApiKeyPrompt(onOpenSettings, Modifier.align(Alignment.Center))
-            } else if (entries.isEmpty() && pending == null) {
+            if (settings?.hasApiKey != true) {
+                // Also skips the feed, which would otherwise sit on top and swallow the prompt's taps.
+                if (settings != null) ApiKeyPrompt(onOpenSettings, Modifier.align(Alignment.Center))
+                return@Box
+            }
+            if (entries.isEmpty() && pending == null) {
                 Text(
-                    "Pick the language you're writing in below, type, and send.\n" +
-                        "Your translations will collect here.",
+                    stringResource(R.string.empty_feed),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -226,7 +234,7 @@ private fun Composer(
                     FilterChip(
                         selected = selected,
                         onClick = { onSelectSource(code) },
-                        label = { Text(Languages.nameOf(code)) },
+                        label = { Text(Languages.displayName(code)) },
                         leadingIcon =
                             if (selected) {
                                 { Icon(Icons.Filled.Check, null, Modifier.size(FilterChipDefaults.IconSize)) }
@@ -238,7 +246,7 @@ private fun Composer(
                 item(key = "add") {
                     AssistChip(
                         onClick = onEditLanguages,
-                        label = { Text("Languages") },
+                        label = { Text(stringResource(R.string.languages)) },
                         leadingIcon = { Icon(Icons.Filled.Add, null, Modifier.size(FilterChipDefaults.IconSize)) },
                     )
                 }
@@ -250,14 +258,14 @@ private fun Composer(
                 OutlinedTextField(
                     value = input,
                     onValueChange = onInputChange,
-                    placeholder = { Text("Write in ${Languages.nameOf(settings.source)}…") },
+                    placeholder = { Text(stringResource(R.string.write_in, Languages.displayName(settings.source))) },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     maxLines = 6,
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.size(4.dp))
                 IconButton(onClick = onPasteAndSend, enabled = !busy && settings.hasApiKey) {
-                    Icon(painterResource(R.drawable.ic_paste), contentDescription = "Paste and translate")
+                    Icon(painterResource(R.drawable.ic_paste), contentDescription = stringResource(R.string.paste_and_translate))
                 }
                 FilledIconButton(
                     onClick = onSend,
@@ -266,7 +274,7 @@ private fun Composer(
                     if (busy) {
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     } else {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Translate")
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.translate))
                     }
                 }
             }
@@ -286,7 +294,7 @@ private fun EntryCard(
         Column(Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    Languages.nameOf(entry.sourceLanguage),
+                    Languages.displayName(entry.sourceLanguage),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -298,25 +306,25 @@ private fun EntryCard(
                 )
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.more_options))
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
-                            text = { Text("Copy original") },
+                            text = { Text(stringResource(R.string.copy_original)) },
                             onClick = {
                                 menuOpen = false
                                 onCopy(entry.sourceText)
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("Edit and resend") },
+                            text = { Text(stringResource(R.string.edit_and_resend)) },
                             onClick = {
                                 menuOpen = false
                                 onReuse()
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("Delete") },
+                            text = { Text(stringResource(R.string.delete)) },
                             onClick = {
                                 menuOpen = false
                                 onDelete()
@@ -346,7 +354,7 @@ private fun TranslationBlock(
 ) {
     Column(modifier.fillMaxWidth().padding(end = 12.dp)) {
         Text(
-            Languages.nameOf(code),
+            Languages.displayName(code),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.tertiary,
         )
@@ -362,7 +370,7 @@ private fun PendingCard(request: PendingTranslation) {
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(
-                Languages.nameOf(request.source),
+                Languages.displayName(request.source),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -372,7 +380,7 @@ private fun PendingCard(request: PendingTranslation) {
                 CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.size(8.dp))
                 Text(
-                    "Translating to " + request.targets.joinToString { Languages.nameOf(it) } + "…",
+                    stringResource(R.string.translating_to, request.targets.joinToString { Languages.displayName(it) }),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -388,10 +396,10 @@ private fun ApiKeyPrompt(
 ) {
     Column(modifier.padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            "Trilingual uses your own Anthropic API key to translate.",
+            stringResource(R.string.api_key_prompt),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
         )
-        TextButton(onClick = onOpenSettings) { Text("Add API key") }
+        Button(onClick = onOpenSettings, modifier = Modifier.padding(top = 16.dp)) { Text(stringResource(R.string.add_api_key)) }
     }
 }

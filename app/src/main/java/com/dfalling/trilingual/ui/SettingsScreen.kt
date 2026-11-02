@@ -8,6 +8,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dfalling.trilingual.BuildConfig
+import com.dfalling.trilingual.R
 import com.dfalling.trilingual.data.ClaudeModel
 
 private const val API_KEYS_URL = "https://platform.claude.com/settings/keys"
@@ -71,10 +73,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.settings)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )
@@ -89,18 +91,17 @@ fun SettingsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
         ) {
-            Text("Anthropic API key", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.api_key_title), style = MaterialTheme.typography.titleMedium)
             Text(
                 if (settings?.hasApiKey == true) {
-                    "A key is saved, encrypted on this device. Enter a new one to replace it."
+                    stringResource(R.string.api_key_saved_hint)
                 } else {
-                    "Create a key in the Anthropic Console, copy it, then paste it here. " +
-                        "It's stored encrypted on this device and only sent to Anthropic."
+                    stringResource(R.string.api_key_missing_hint)
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedButton(onClick = { uriHandler.openUri(API_KEYS_URL) }) { Text("Get a key") }
+            OutlinedButton(onClick = { uriHandler.openUri(API_KEYS_URL) }) { Text(stringResource(R.string.get_a_key)) }
             OutlinedTextField(
                 value = keyDraft,
                 onValueChange = { keyDraft = it },
@@ -122,7 +123,7 @@ fun SettingsScreen(
                         },
                         enabled = !checking,
                         modifier = Modifier.padding(end = 4.dp),
-                    ) { Text("Paste") }
+                    ) { Text(stringResource(R.string.paste)) }
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -131,25 +132,25 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         Text(
-                            "Checking key…",
+                            stringResource(R.string.checking_key),
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(start = 8.dp),
                         )
                     }
                 is KeyStatus.Saved ->
-                    Text(status.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(status.message.asString(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                 is KeyStatus.Error ->
-                    Text(status.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    Text(status.message.asString(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 null -> Unit
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = save, enabled = keyDraft.isNotBlank() && !checking) { Text("Save key") }
+                Button(onClick = save, enabled = keyDraft.isNotBlank() && !checking) { Text(stringResource(R.string.save_key)) }
                 if (settings?.hasApiKey == true) {
-                    OutlinedButton(onClick = viewModel::removeApiKey, enabled = !checking) { Text("Remove key") }
+                    OutlinedButton(onClick = viewModel::removeApiKey, enabled = !checking) { Text(stringResource(R.string.remove_key)) }
                 }
             }
 
-            Text("Model", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
+            Text(stringResource(R.string.model), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
             ClaudeModel.entries.forEach { model ->
                 val selected = settings?.model == model.id
                 Row(
@@ -163,7 +164,7 @@ fun SettingsScreen(
                     Column(Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp)) {
                         Text(model.label, style = MaterialTheme.typography.bodyLarge)
                         Text(
-                            model.blurb,
+                            stringResource(model.blurb),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -171,8 +172,8 @@ fun SettingsScreen(
                 }
             }
 
-            Text("History", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
-            OutlinedButton(onClick = { confirmClear = true }) { Text("Clear history") }
+            Text(stringResource(R.string.history), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
+            OutlinedButton(onClick = { confirmClear = true }) { Text(stringResource(R.string.clear_history)) }
 
             Text(
                 "Trilingual ${BuildConfig.VERSION_NAME}",
@@ -186,15 +187,15 @@ fun SettingsScreen(
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("Clear history?") },
-            text = { Text("All past translations will be deleted from this device.") },
+            title = { Text(stringResource(R.string.clear_history_title)) },
+            text = { Text(stringResource(R.string.clear_history_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.clearHistory()
                     confirmClear = false
-                }) { Text("Clear") }
+                }) { Text(stringResource(R.string.clear)) }
             },
-            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }

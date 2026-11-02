@@ -34,6 +34,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Installs beside the release app instead of over it (and its saved key and history).
+            applicationIdSuffix = ".debug"
+        }
         release {
             // Falls back to the debug key so `assembleRelease` still works locally
             // as a smoke test without the release keystore.

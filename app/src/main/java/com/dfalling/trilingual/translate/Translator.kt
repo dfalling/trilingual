@@ -13,6 +13,8 @@ import com.anthropic.models.messages.MessageCreateParams
 import com.anthropic.models.messages.OutputConfig
 import com.anthropic.models.messages.StopReason
 import com.anthropic.models.models.ModelListParams
+import com.dfalling.trilingual.R
+import com.dfalling.trilingual.UiText
 import com.dfalling.trilingual.data.ClaudeModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -23,12 +25,12 @@ sealed interface KeyCheck {
     data object Valid : KeyCheck
 
     data class Rejected(
-        val reason: String,
+        val reason: UiText,
     ) : KeyCheck
 
     /** The API couldn't be reached, so the key may still be fine. */
     data class Unverified(
-        val reason: String,
+        val reason: UiText,
     ) : KeyCheck
 }
 
@@ -79,20 +81,20 @@ class Translator {
                 try {
                     client(apiKey).messages().create(params)
                 } catch (e: UnauthorizedException) {
-                    throw TranslationException("Your API key was rejected. Check it in Settings.", e)
+                    throw TranslationException(UiText(R.string.error_key_rejected), e)
                 } catch (e: PermissionDeniedException) {
-                    throw TranslationException("Your API key doesn't have access to $model.", e)
+                    throw TranslationException(UiText(R.string.error_no_model_access, model), e)
                 } catch (e: RateLimitException) {
-                    throw TranslationException("Rate limited by the API. Try again in a moment.", e)
+                    throw TranslationException(UiText(R.string.error_rate_limited), e)
                 } catch (e: AnthropicServiceException) {
-                    throw TranslationException("The API returned an error (${e.statusCode()}). Try again.", e)
+                    throw TranslationException(UiText(R.string.error_api, e.statusCode()), e)
                 } catch (e: AnthropicIoException) {
-                    throw TranslationException("Couldn't reach the API. Check your connection.", e)
+                    throw TranslationException(UiText(R.string.error_network), e)
                 }
 
             when (message.stopReason().getOrNull()) {
-                StopReason.REFUSAL -> throw TranslationException("Claude declined to translate this text.")
-                StopReason.MAX_TOKENS -> throw TranslationException("That text is too long to translate in one go.")
+                StopReason.REFUSAL -> throw TranslationException(UiText(R.string.error_refused))
+                StopReason.MAX_TOKENS -> throw TranslationException(UiText(R.string.error_too_long))
                 else -> Unit
             }
 
@@ -100,7 +102,7 @@ class Translator {
             try {
                 TranslationPrompt.parse(json, targets)
             } catch (e: org.json.JSONException) {
-                throw TranslationException("Got an unreadable response. Try again.", e)
+                throw TranslationException(UiText(R.string.error_unreadable), e)
             }
         }
 
@@ -111,13 +113,13 @@ class Translator {
                 client(apiKey).models().list(ModelListParams.builder().limit(1L).build())
                 KeyCheck.Valid
             } catch (e: UnauthorizedException) {
-                KeyCheck.Rejected("Anthropic rejected this key. Check that you copied all of it.")
+                KeyCheck.Rejected(UiText(R.string.key_rejected))
             } catch (e: PermissionDeniedException) {
-                KeyCheck.Rejected("This key doesn't have API access.")
+                KeyCheck.Rejected(UiText(R.string.key_no_access))
             } catch (e: AnthropicServiceException) {
-                KeyCheck.Unverified("The API returned an error (${e.statusCode()}) while checking the key.")
+                KeyCheck.Unverified(UiText(R.string.key_check_error, e.statusCode()))
             } catch (e: AnthropicIoException) {
-                KeyCheck.Unverified("Couldn't reach Anthropic to check the key.")
+                KeyCheck.Unverified(UiText(R.string.key_check_unreachable))
             }
         }
 

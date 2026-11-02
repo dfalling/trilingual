@@ -1,5 +1,7 @@
 package com.dfalling.trilingual.data
 
+import java.util.Locale
+
 /** A language the app can translate between. [code] is a BCP 47 tag and the stable storage key. */
 data class Language(
     val code: String,
@@ -54,6 +56,19 @@ object Languages {
 
     fun byCode(code: String): Language? = byCode[code]
 
-    /** Display name for a code, falling back to the raw code for languages no longer in the catalog. */
+    /** English name for a code (used in prompts), falling back to the raw code for languages no longer in the catalog. */
     fun nameOf(code: String): String = byCode[code]?.name ?: code
+
+    /**
+     * Name to show in the UI, in [locale]'s language. English keeps the catalog's names; other
+     * languages use the platform's locale data, e.g. "Portugués (Brasil)" in Spanish.
+     */
+    fun displayName(
+        code: String,
+        locale: Locale = Locale.getDefault(),
+    ): String {
+        if (locale.language == "en") return nameOf(code)
+        val name = Locale.forLanguageTag(code).getDisplayName(locale)
+        return if (name.isBlank() || name == code) nameOf(code) else name.replaceFirstChar { it.titlecase(locale) }
+    }
 }

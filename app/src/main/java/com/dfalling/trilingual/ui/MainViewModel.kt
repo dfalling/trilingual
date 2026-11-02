@@ -8,7 +8,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.dfalling.trilingual.R
 import com.dfalling.trilingual.TrilingualApp
+import com.dfalling.trilingual.UiText
 import com.dfalling.trilingual.data.Settings
 import com.dfalling.trilingual.data.SettingsRepository
 import com.dfalling.trilingual.data.TranslationDao
@@ -37,11 +39,11 @@ sealed interface KeyStatus {
     data object Checking : KeyStatus
 
     data class Saved(
-        val message: String,
+        val message: UiText,
     ) : KeyStatus
 
     data class Error(
-        val message: String,
+        val message: UiText,
     ) : KeyStatus
 }
 
@@ -59,7 +61,7 @@ class MainViewModel(
     private val _pending = MutableStateFlow<PendingTranslation?>(null)
     val pending: StateFlow<PendingTranslation?> = _pending.asStateFlow()
 
-    private val _messages = Channel<String>(Channel.BUFFERED)
+    private val _messages = Channel<UiText>(Channel.BUFFERED)
     val messages = _messages.receiveAsFlow()
 
     var input by mutableStateOf("")
@@ -73,7 +75,7 @@ class MainViewModel(
         input = ""
         viewModelScope.launch {
             try {
-                val apiKey = settingsRepo.apiKey() ?: throw TranslationException("Add your Anthropic API key in Settings.")
+                val apiKey = settingsRepo.apiKey() ?: throw TranslationException(UiText(R.string.error_no_key))
                 val translations = translator.translate(apiKey, current.model, text, request.source, request.targets)
                 history.insert(
                     TranslationEntry(
@@ -88,7 +90,7 @@ class MainViewModel(
             } catch (e: Exception) {
                 // Give the text back so nothing the user typed is lost.
                 if (input.isEmpty()) input = text
-                _messages.send((e as? TranslationException)?.message ?: "Translation failed: ${e.message}")
+                _messages.send((e as? TranslationException)?.text ?: UiText(R.string.error_generic, e.message.orEmpty()))
             } finally {
                 _pending.value = null
             }
@@ -104,7 +106,7 @@ class MainViewModel(
         viewModelScope.launch {
             if (code in current.languages) {
                 if (current.languages.size <= 2) {
-                    _messages.send("Keep at least two languages.")
+                    _messages.send(UiText(R.string.min_two_languages))
                     return@launch
                 }
                 val remaining = current.languages - code
@@ -156,13 +158,13 @@ class MainViewModel(
                     KeyCheck.Valid -> {
                         settingsRepo.setApiKey(trimmed)
                         onSaved()
-                        KeyStatus.Saved("Key works and is saved.")
+                        KeyStatus.Saved(UiText(R.string.key_saved))
                     }
                     is KeyCheck.Unverified -> {
                         // Don't block setup on a flaky connection; a bad key still surfaces on first translate.
                         settingsRepo.setApiKey(trimmed)
                         onSaved()
-                        KeyStatus.Saved("Saved, but not verified. ${check.reason}")
+                        KeyStatus.Saved(UiText(R.string.key_saved_unverified, check.reason))
                     }
                     is KeyCheck.Rejected -> KeyStatus.Error(check.reason)
                 }
