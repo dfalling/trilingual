@@ -82,7 +82,7 @@ jobs:
           ls -la artifacts
 
       - name: Upload APK as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trilingual-${{ steps.version.outputs.name }}
           path: artifacts/*.apk
