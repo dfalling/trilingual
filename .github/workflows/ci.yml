@@ -16,7 +16,7 @@ jobs:
       # share one source of truth.
       - uses: jdx/mise-action@v2
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Lint, unit tests, debug build
         run: ./gradlew lintDebug testDebugUnitTest assembleDebug --no-daemon --stacktrace
