@@ -92,7 +92,7 @@ jobs:
         # Cut a release for both `main` pushes and `v*` tag pushes; skip for
         # workflow_dispatch (manual runs just produce the workflow artifact).
         if: github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.version.outputs.name }}
           target_commitish: ${{ github.sha }}
