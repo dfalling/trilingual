@@ -49,9 +49,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dfalling.trilingual.BuildConfig
 import com.dfalling.trilingual.R
-import com.dfalling.trilingual.data.ClaudeModel
+import com.dfalling.trilingual.data.TranslateModel
 
-private const val API_KEYS_URL = "https://platform.claude.com/settings/keys"
+private const val API_KEYS_URL = "https://deepinfra.com/dash/keys"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,7 +105,6 @@ fun SettingsScreen(
             OutlinedTextField(
                 value = keyDraft,
                 onValueChange = { keyDraft = it },
-                placeholder = { Text("sk-ant-…") },
                 singleLine = true,
                 enabled = !checking,
                 isError = keyStatus is KeyStatus.Error,
@@ -151,7 +150,7 @@ fun SettingsScreen(
             }
 
             Text(stringResource(R.string.model), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
-            ClaudeModel.entries.forEach { model ->
+            TranslateModel.entries.forEach { model ->
                 val selected = settings?.model == model.id
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

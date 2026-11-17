@@ -2,9 +2,9 @@
 
 Native Android app (Kotlin, Jetpack Compose) for writing in one language and reading it back in
 several others at once, e.g. type in English and see Spanish and Portuguese together.
-Translations come from Claude using your own Anthropic API key. Distributed through GitHub
-Releases (works with [Obtainium](https://github.com/ImranR98/Obtainium)), with no Google Play
-Services dependency.
+Translations come from open models (DeepSeek, GLM, Qwen) hosted on DeepInfra, using your own
+DeepInfra API key. Distributed through GitHub Releases (works with
+[Obtainium](https://github.com/ImranR98/Obtainium)), with no Google Play Services dependency.
 
 ## Using it
 
@@ -15,23 +15,22 @@ Services dependency.
   at the bottom. Tap a translation to copy it. The ⋮ menu copies the original, puts it back in
   the composer to edit and resend, or deletes it.
 - **Settings:** API key (encrypted with an Android Keystore key, never backed up). **Get a key**
-  opens the Console's API keys page, **Paste** fills the field from the clipboard, and saving
-  checks the key against Anthropic's free model-list endpoint first, so a bad key is caught
-  right away. Settings also has the model (Opus 5.5 by default; Sonnet 5.5 and Haiku 5.5 are
-  faster and cheaper) and clear history.
+  opens the DeepInfra dashboard's API keys page, **Paste** fills the field from the clipboard,
+  and saving checks the key with a one-token request first, so a bad key is
+  caught right away. Settings also has the model (DeepSeek V4.1 Flash by default; GLM 5.3
+  Flash and Qwen3.5 397B trade speed for quality) and clear history.
 - **App language:** follows the phone's language. English, Spanish and Portuguese (Brazilian, with
   European Portuguese wording where it differs) are included; anything else falls back to English.
   Strings live in `app/src/main/res/values*/strings.xml`.
 
 ## How translation works
 
-`translate/Translator.kt` calls the Messages API through the official
-[Anthropic Java SDK](https://github.com/anthropics/anthropic-sdk-java). One request covers all
-target languages. Structured outputs (`output_config.format` with a JSON schema whose
-`language` enum is the target codes) make the reply parseable, and effort is set to `low`
-because translation doesn't need deep reasoning. On Opus and Sonnet, the request opts into
-server-side refusal fallbacks (`server-side-fallback-2026-07-01`). Prompt and parsing live in
-`translate/TranslationPrompt.kt` and are unit-tested.
+`translate/Translator.kt` calls DeepInfra's OpenAI-compatible Chat Completions API over OkHttp
+(one request covers all target languages; get a key at [deepinfra.com/dash/keys](https://deepinfra.com/dash/keys)).
+Structured outputs (`response_format` with a JSON schema whose `language` enum is the target
+codes) make the reply parseable, and reasoning is off (`reasoning_effort: none`) because
+translation doesn't need it. Prompt and parsing live in `translate/TranslationPrompt.kt`
+and are unit-tested, along with the request and response handling in `TranslatorTest`.
 
 ## Setup
 
@@ -106,7 +105,7 @@ that R8 minification still works.
 app/src/main/java/com/dfalling/trilingual/
   MainActivity.kt, TrilingualApp.kt    entry point, manual dependency wiring
   data/        Language catalog, DataStore settings, encrypted API key, Room history
-  translate/   Anthropic SDK call, prompt, schema, response parsing
+  translate/   DeepInfra API call, prompt, schema, response parsing
   ui/          Compose screens and the ViewModel
 gradle/libs.versions.toml              dependency versions (Renovate keeps them current)
 release-secrets.enc.yaml               SOPS-encrypted signing keystore and passwords
