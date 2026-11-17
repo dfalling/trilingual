@@ -13,6 +13,7 @@ import com.dfalling.trilingual.TrilingualApp
 import com.dfalling.trilingual.UiText
 import com.dfalling.trilingual.data.Settings
 import com.dfalling.trilingual.data.SettingsRepository
+import com.dfalling.trilingual.data.TranslateModel
 import com.dfalling.trilingual.data.TranslationDao
 import com.dfalling.trilingual.data.TranslationEntry
 import com.dfalling.trilingual.translate.KeyCheck
@@ -144,7 +145,7 @@ class MainViewModel(
     var keyStatus by mutableStateOf<KeyStatus?>(null)
         private set
 
-    /** Checks [key] with Anthropic and saves it unless it's rejected. Calls [onSaved] once it's stored. */
+    /** Checks [key] with the provider and saves it unless it's rejected. Calls [onSaved] once it's stored. */
     fun saveApiKey(
         key: String,
         onSaved: () -> Unit,
@@ -154,7 +155,7 @@ class MainViewModel(
         keyStatus = KeyStatus.Checking
         viewModelScope.launch {
             keyStatus =
-                when (val check = translator.verifyKey(trimmed)) {
+                when (val check = translator.verifyKey(trimmed, settings.value?.model ?: TranslateModel.default.id)) {
                     KeyCheck.Valid -> {
                         settingsRepo.setApiKey(trimmed)
                         onSaved()

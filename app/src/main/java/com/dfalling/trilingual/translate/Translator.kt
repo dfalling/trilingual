@@ -1,24 +1,19 @@
 package com.dfalling.trilingual.translate
 
-import com.anthropic.client.AnthropicClient
-import com.anthropic.client.okhttp.AnthropicOkHttpClient
-import com.anthropic.core.JsonValue
-import com.anthropic.errors.AnthropicIoException
-import com.anthropic.errors.AnthropicServiceException
-import com.anthropic.errors.PermissionDeniedException
-import com.anthropic.errors.RateLimitException
-import com.anthropic.errors.UnauthorizedException
-import com.anthropic.models.messages.JsonOutputFormat
-import com.anthropic.models.messages.MessageCreateParams
-import com.anthropic.models.messages.OutputConfig
-import com.anthropic.models.messages.StopReason
-import com.anthropic.models.models.ModelListParams
 import com.dfalling.trilingual.R
 import com.dfalling.trilingual.UiText
-import com.dfalling.trilingual.data.ClaudeModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlin.jvm.optionals.getOrNull
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONException
+import org.json.JSONObject
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 /** Result of checking an API key before saving it. */
 sealed interface KeyCheck {
@@ -34,8 +29,21 @@ sealed interface KeyCheck {
     ) : KeyCheck
 }
 
-class Translator {
-    private var cachedClient: Pair<String, AnthropicClient>? = null
+/**
+ * Calls DeepInfra's OpenAI-compatible Chat Completions API. One request covers all target
+ * languages; the reply is constrained to [TranslationPrompt.schema] via `response_format`
+ * with a JSON schema, mirroring the structured outputs the app relied on before.
+ */
+class Translator(private val baseUrl: String = BASE_URL) {
+    private val httpClient =
+        OkHttpClient
+            .Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            // Non-streaming completions send no bytes until generation finishes, so the
+            // read timeout has to cover a full slow generation.
+            .readTimeout(600, TimeUnit.SECONDS)
+            .callTimeout(660, TimeUnit.SECONDS)
+            .build()
 
     suspend fun translate(
         apiKey: String,
@@ -45,90 +53,166 @@ class Translator {
         targets: List<String>,
     ): Map<String, String> =
         withContext(Dispatchers.IO) {
-            val params =
-                MessageCreateParams
-                    .builder()
-                    .model(model)
-                    .maxTokens(16000L)
-                    .system(TranslationPrompt.system)
-                    .outputConfig(
-                        OutputConfig
-                            .builder()
-                            // Translation doesn't benefit from deep reasoning; low effort keeps it snappy.
-                            .effort(OutputConfig.Effort.LOW)
-                            .format(
-                                JsonOutputFormat
-                                    .builder()
-                                    .schema(
-                                        JsonOutputFormat.Schema
-                                            .builder()
-                                            .putAllAdditionalProperties(
-                                                TranslationPrompt.schema(targets).mapValues { JsonValue.from(it.value) },
-                                            ).build(),
-                                    ).build(),
-                            ).build(),
-                    ).addUserMessage(TranslationPrompt.userMessage(text, source, targets))
-                    .apply {
-                        // If a safety classifier declines, let the API retry on a fallback model
-                        // rather than failing the translation outright.
-                        if (model != ClaudeModel.HAIKU.id) {
-                            putAdditionalHeader("anthropic-beta", "server-side-fallback-2026-07-01")
-                            putAdditionalBodyProperty("fallbacks", JsonValue.from("default"))
-                        }
-                    }.build()
+            val request =
+                Request
+                    .Builder()
+                    .url("$baseUrl/chat/completions")
+                    .header("Authorization", "Bearer $apiKey")
+                    .post(requestBody(model, text, source, targets).toString().toRequestBody(JSON))
+                    .build()
 
-            val message =
-                try {
-                    client(apiKey).messages().create(params)
-                } catch (e: UnauthorizedException) {
-                    throw TranslationException(UiText(R.string.error_key_rejected), e)
-                } catch (e: PermissionDeniedException) {
-                    throw TranslationException(UiText(R.string.error_no_model_access, model), e)
-                } catch (e: RateLimitException) {
-                    throw TranslationException(UiText(R.string.error_rate_limited), e)
-                } catch (e: AnthropicServiceException) {
-                    throw TranslationException(UiText(R.string.error_api, e.statusCode()), e)
-                } catch (e: AnthropicIoException) {
-                    throw TranslationException(UiText(R.string.error_network), e)
-                }
-
-            when (message.stopReason().getOrNull()) {
-                StopReason.REFUSAL -> throw TranslationException(UiText(R.string.error_refused))
-                StopReason.MAX_TOKENS -> throw TranslationException(UiText(R.string.error_too_long))
-                else -> Unit
-            }
-
-            val json = message.content().mapNotNull { it.text().getOrNull()?.text() }.joinToString("")
-            try {
-                TranslationPrompt.parse(json, targets)
-            } catch (e: org.json.JSONException) {
-                throw TranslationException(UiText(R.string.error_unreadable), e)
-            }
+            parseCompletion(executeWithRetry(request, model), targets)
         }
 
-    /** Checks a key against the model-listing endpoint, which is free and needs no model access. */
-    suspend fun verifyKey(apiKey: String): KeyCheck =
+    /**
+     * Checks a key — and access to [model] — with a one-token completion, which costs a
+     * fraction of a cent. DeepInfra's model-listing endpoint is public, so it can't verify
+     * a key.
+     */
+    suspend fun verifyKey(
+        apiKey: String,
+        model: String,
+    ): KeyCheck =
         withContext(Dispatchers.IO) {
+            val body =
+                JSONObject()
+                    .put("model", model)
+                    .put("max_tokens", 1L)
+                    .put(
+                        "messages",
+                        JSONArray().put(JSONObject().put("role", "user").put("content", ".")),
+                    )
+            val request =
+                Request
+                    .Builder()
+                    .url("$baseUrl/chat/completions")
+                    .header("Authorization", "Bearer $apiKey")
+                    .post(body.toString().toRequestBody(JSON))
+                    .build()
             try {
-                client(apiKey).models().list(ModelListParams.builder().limit(1L).build())
-                KeyCheck.Valid
-            } catch (e: UnauthorizedException) {
-                KeyCheck.Rejected(UiText(R.string.key_rejected))
-            } catch (e: PermissionDeniedException) {
-                KeyCheck.Rejected(UiText(R.string.key_no_access))
-            } catch (e: AnthropicServiceException) {
-                KeyCheck.Unverified(UiText(R.string.key_check_error, e.statusCode()))
-            } catch (e: AnthropicIoException) {
+                httpClient.newCall(request).execute().use { response ->
+                    when (response.code) {
+                        in 200..299 -> KeyCheck.Valid
+                        401 -> KeyCheck.Rejected(UiText(R.string.key_rejected))
+                        403 -> KeyCheck.Rejected(UiText(R.string.key_no_access))
+                        else -> KeyCheck.Unverified(UiText(R.string.key_check_error, response.code))
+                    }
+                }
+            } catch (e: IOException) {
                 KeyCheck.Unverified(UiText(R.string.key_check_unreachable))
             }
         }
 
-    @Synchronized
-    private fun client(apiKey: String): AnthropicClient =
-        cachedClient?.takeIf { it.first == apiKey }?.second
-            ?: AnthropicOkHttpClient
-                .builder()
-                .apiKey(apiKey)
-                .build()
-                .also { cachedClient = apiKey to it }
+    /** The chat-completions request body: system + user messages and a strict JSON schema. */
+    internal fun requestBody(
+        model: String,
+        text: String,
+        source: String,
+        targets: List<String>,
+    ): JSONObject =
+        JSONObject()
+            .put("model", model)
+            // DeepInfra caps max_tokens per model; this fits under the smallest hard cap.
+            .put("max_tokens", 16000L)
+            // Translation doesn't benefit from deep reasoning; turning it off keeps requests
+            // snappy. It's a no-op on models that can't reason.
+            .put("reasoning_effort", "none")
+            .put(
+                "response_format",
+                JSONObject()
+                    .put("type", "json_schema")
+                    .put(
+                        "json_schema",
+                        JSONObject()
+                            .put("name", "translation")
+                            .put("strict", true)
+                            .put("schema", JSONObject(TranslationPrompt.schema(targets))),
+                    ),
+            ).put(
+                "messages",
+                JSONArray()
+                    .put(JSONObject().put("role", "system").put("content", TranslationPrompt.system))
+                    .put(
+                        JSONObject()
+                            .put("role", "user")
+                            .put("content", TranslationPrompt.userMessage(text, source, targets)),
+                    ),
+            )
+
+    /**
+     * Extracts the reply's JSON from a chat-completions response and parses it, mapping
+     * truncation and refusal finish reasons to the same errors the old API produced.
+     */
+    internal fun parseCompletion(
+        body: String,
+        targets: List<String>,
+    ): Map<String, String> {
+        val response =
+            try {
+                JSONObject(body)
+            } catch (e: JSONException) {
+                throw TranslationException(UiText(R.string.error_unreadable), e)
+            }
+        val choice = response.optJSONArray("choices")?.optJSONObject(0)
+        when (choice?.optString("finish_reason")) {
+            "length" -> throw TranslationException(UiText(R.string.error_too_long))
+            "content_filter" -> throw TranslationException(UiText(R.string.error_refused))
+        }
+        val message = choice?.optJSONObject("message")
+        // Android's org.json turns a JSON-null content into the string "null", so test
+        // isNull rather than emptiness of optString.
+        val content = if (message == null || message.isNull("content")) "" else message.optString("content")
+        if (content.isBlank()) throw TranslationException(UiText(R.string.error_unreadable))
+        return try {
+            TranslationPrompt.parse(content, targets)
+        } catch (e: JSONException) {
+            throw TranslationException(UiText(R.string.error_unreadable), e)
+        }
+    }
+
+    /**
+     * Runs the request, retrying transient failures (408/429/5xx) with backoff like the
+     * previous SDK did; anything else surfaces as its mapped error.
+     */
+    private suspend fun executeWithRetry(
+        request: Request,
+        model: String,
+    ): String {
+        var attempt = 0
+        var backoffMs = 1000L
+        while (true) {
+            val code =
+                try {
+                    httpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) return response.body?.string().orEmpty()
+                        response.code
+                    }
+                } catch (e: IOException) {
+                    throw TranslationException(UiText(R.string.error_network), e)
+                }
+            attempt++
+            if (attempt > RETRIES || code !in RETRYABLE) throw httpError(code, model)
+            delay(backoffMs)
+            backoffMs *= 2
+        }
+    }
+
+    private fun httpError(
+        code: Int,
+        model: String,
+    ): TranslationException =
+        when (code) {
+            401 -> TranslationException(UiText(R.string.error_key_rejected))
+            402 -> TranslationException(UiText(R.string.error_no_credit))
+            403 -> TranslationException(UiText(R.string.error_no_model_access, model))
+            429 -> TranslationException(UiText(R.string.error_rate_limited))
+            else -> TranslationException(UiText(R.string.error_api, code))
+        }
+
+    companion object {
+        const val BASE_URL = "https://api.deepinfra.com/v1/openai"
+        private const val RETRIES = 2
+        private val RETRYABLE = setOf(408, 429) + (500..599)
+        private val JSON = "application/json; charset=utf-8".toMediaType()
+    }
 }

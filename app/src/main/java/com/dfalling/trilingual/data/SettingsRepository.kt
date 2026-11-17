@@ -21,18 +21,22 @@ data class Settings(
     val targets: List<String> get() = languages - source
 }
 
-enum class ClaudeModel(
+/**
+ * The models offered in Settings, served by DeepInfra. Ids are DeepInfra model strings;
+ * a stored id from a version of the app that no longer knows it falls back to [default].
+ */
+enum class TranslateModel(
     val id: String,
     val label: String,
     @param:StringRes val blurb: Int,
 ) {
-    OPUS("claude-opus-5-5", "Claude Opus 5.5", R.string.model_opus_blurb),
-    SONNET("claude-sonnet-5-5", "Claude Sonnet 5.5", R.string.model_sonnet_blurb),
-    HAIKU("claude-haiku-5-5", "Claude Haiku 5.5", R.string.model_haiku_blurb),
+    QWEN("Qwen/Qwen3.5-397B-A17B", "Qwen3.5 397B", R.string.model_best_blurb),
+    GLM("zai-org/GLM-5.3-Flash", "GLM 5.3 Flash", R.string.model_balanced_blurb),
+    DEEPSEEK("deepseek-ai/DeepSeek-V4.1-Flash-1017", "DeepSeek V4.1 Flash", R.string.model_fast_blurb),
     ;
 
     companion object {
-        val default = OPUS
+        val default = DEEPSEEK
     }
 }
 
@@ -57,11 +61,16 @@ class SettingsRepository(
                     ?.takeIf { it.size >= 2 }
                     ?: Languages.defaultCodes
             val source = prefs[Keys.source]?.takeIf { it in languages } ?: languages.first()
+            // A stored model id this build doesn't know marks an install from before the
+            // DeepInfra switch, whose saved key belongs to the old provider: show the app as
+            // keyless so that key is never sent to the new one. Saving a new key overwrites it.
+            val migrated = prefs[Keys.model]?.let { id -> TranslateModel.entries.none { it.id == id } } == true
             Settings(
                 languages = languages,
                 source = source,
-                model = prefs[Keys.model] ?: ClaudeModel.default.id,
-                hasApiKey = prefs[Keys.apiKey] != null,
+                model = prefs[Keys.model]?.takeIf { id -> TranslateModel.entries.any { it.id == id } }
+                    ?: TranslateModel.default.id,
+                hasApiKey = prefs[Keys.apiKey] != null && !migrated,
             )
         }
 

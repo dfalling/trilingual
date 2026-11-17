@@ -10,7 +10,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Encrypts the Anthropic API key at rest with an AES key that never leaves the
+ * Encrypts the provider API key at rest with an AES key that never leaves the
  * Android Keystore, so a copied preferences file is useless off the device.
  */
 object ApiKeyCipher {

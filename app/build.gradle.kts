@@ -102,7 +102,7 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
 
-    implementation(libs.anthropic.java)
+    implementation(libs.okhttp)
 
     testImplementation(libs.junit)
     // Android's org.json is a stub in local unit tests; use the real implementation.
