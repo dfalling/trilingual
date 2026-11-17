@@ -42,6 +42,9 @@ enum class TranslateModel(
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
+/** Prefix of keys issued by the pre-DeepInfra version of the app; they can't work here. */
+private const val LEGACY_KEY_PREFIX = "sk-ant-"
+
 class SettingsRepository(
     private val context: Context,
 ) {
@@ -61,20 +64,24 @@ class SettingsRepository(
                     ?.takeIf { it.size >= 2 }
                     ?: Languages.defaultCodes
             val source = prefs[Keys.source]?.takeIf { it in languages } ?: languages.first()
-            // A stored model id this build doesn't know marks an install from before the
-            // DeepInfra switch, whose saved key belongs to the old provider: show the app as
-            // keyless so that key is never sent to the new one. Saving a new key overwrites it.
-            val migrated = prefs[Keys.model]?.let { id -> TranslateModel.entries.none { it.id == id } } == true
+            // A key saved by the pre-DeepInfra version of the app is an Anthropic key
+            // (sk-ant-…): it can't work here, so treat the app as keyless rather than ever
+            // sending it to DeepInfra. Saving a new key overwrites it.
+            val key = prefs[Keys.apiKey]?.let(ApiKeyCipher::decrypt)
             Settings(
                 languages = languages,
                 source = source,
                 model = prefs[Keys.model]?.takeIf { id -> TranslateModel.entries.any { it.id == id } }
                     ?: TranslateModel.default.id,
-                hasApiKey = prefs[Keys.apiKey] != null && !migrated,
+                hasApiKey = key != null && !key.startsWith(LEGACY_KEY_PREFIX),
             )
         }
 
-    suspend fun apiKey(): String? = context.dataStore.data.first()[Keys.apiKey]?.let(ApiKeyCipher::decrypt)
+    /** Returns the stored key, unless it's a legacy Anthropic key that can't work here. */
+    suspend fun apiKey(): String? =
+        context.dataStore.data.first()[Keys.apiKey]
+            ?.let(ApiKeyCipher::decrypt)
+            ?.takeUnless { it.startsWith(LEGACY_KEY_PREFIX) }
 
     suspend fun setApiKey(key: String) {
         context.dataStore.edit { prefs ->
